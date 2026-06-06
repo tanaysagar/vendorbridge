@@ -1,0 +1,146 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   // "ADMIN", "PROCUREMENT_OFFICER", "MANAGER", "VENDOR"
+  vendorId  String?  @unique
+  vendor    Vendor?  @relation(fields: [vendorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vendor {
+  id          String   @id @default(cuid())
+  name        String
+  category    String
+  gstNumber   String?
+  contactName String?
+  email       String
+  phone       String?
+  status      String   @default("ACTIVE") // "ACTIVE", "INACTIVE", "BLACKLISTED"
+  user        User?
+  rfqs        RFQVendor[]
+  quotations  Quotation[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RFQ {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  deadline    DateTime
+  status      String   @default("OPEN") // "OPEN", "CLOSED", "CANCELLED"
+  items       RFQItem[]
+  vendors     RFQVendor[]
+  quotations  Quotation[]
+  activityLogs ActivityLog[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RFQItem {
+  id          String   @id @default(cuid())
+  rfqId       String
+  rfq         RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  unit        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RFQVendor {
+  rfqId     String
+  rfq       RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorId  String
+  vendor    Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@id([rfqId, vendorId])
+}
+
+model Quotation {
+  id              String   @id @default(cuid())
+  rfqId           String
+  rfq             RFQ      @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendorId        String
+  vendor          Vendor   @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  status          String   @default("SUBMITTED") // "SUBMITTED", "APPROVED", "REJECTED"
+  totalAmount     Float    @default(0)
+  deliveryTimeline String?
+  notes           String?
+  items           QuotationItem[]
+  approval        Approval?
+  purchaseOrder   PurchaseOrder?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model QuotationItem {
+  id            String   @id @default(cuid())
+  quotationId   String
+  quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  description   String
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Approval {
+  id          String   @id @default(cuid())
+  quotationId String   @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  remarks     String?
+  approvedBy  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  poNumber    String   @unique
+  quotationId String   @unique
+  quotation   Quotation @relation(fields: [quotationId], references: [id])
+  status      String   @default("ISSUED") // "ISSUED", "COMPLETED", "CANCELLED"
+  subtotal    Float
+  tax         Float
+  totalAmount Float
+  invoice     Invoice?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  invoiceNumber   String   @unique
+  purchaseOrderId String   @unique
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  status          String   @default("GENERATED") // "GENERATED", "SENT", "PAID"
+  issueDate       DateTime @default(now())
+  dueDate         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String
+  details   String?
+  rfqId     String?
+  rfq       RFQ?     @relation(fields: [rfqId], references: [id], onDelete: SetNull)
+  userId    String?
+  createdAt DateTime @default(now())
+}
